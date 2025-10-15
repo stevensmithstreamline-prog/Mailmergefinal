@@ -102,11 +102,7 @@ def get_or_create_label(service, label_name="Mail Merge Sent"):
         for label in labels:
             if label["name"].lower() == label_name.lower():
                 return label["id"]
-        label_obj = {
-            "name": label_name,
-            "labelListVisibility": "labelShow",
-            "messageListVisibility": "show",
-        }
+        label_obj = {"name": label_name, "labelListVisibility": "labelShow", "messageListVisibility": "show"}
         created_label = service.users().labels().create(userId="me", body=label_obj).execute()
         return created_label["id"]
     except Exception as e:
@@ -132,7 +128,6 @@ def send_email_backup(service, csv_path):
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         service.users().messages().send(userId="me", body={"raw": raw}).execute()
-
         st.info(f"📧 Backup CSV emailed to {user_email}")
     except Exception as e:
         st.warning(f"⚠️ Could not send backup email: {e}")
@@ -141,10 +136,7 @@ def fetch_message_id_header(service, message_id):
     for _ in range(6):
         try:
             msg_detail = service.users().messages().get(
-                userId="me",
-                id=message_id,
-                format="metadata",
-                metadataHeaders=["Message-ID"],
+                userId="me", id=message_id, format="metadata", metadataHeaders=["Message-ID"]
             ).execute()
             headers = msg_detail.get("payload", {}).get("headers", [])
             for h in headers:
@@ -175,9 +167,7 @@ else:
     else:
         flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES)
         flow.redirect_uri = st.secrets["gmail"]["redirect_uri"]
-        auth_url, _ = flow.authorization_url(
-            prompt="consent", access_type="offline", include_granted_scopes="true"
-        )
+        auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")
         st.markdown(f"### 🔑 Please [authorize the app]({auth_url}) to send emails using your Gmail account.")
         st.stop()
 
@@ -209,7 +199,6 @@ if not st.session_state["sending"]:
 
         st.dataframe(df.head())
         st.info("📌 Include 'ThreadId' and 'RfcMessageId' columns for follow-ups if needed.")
-
         df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
         subject_template = st.text_input("Subject", "Hello {Name}")
@@ -224,13 +213,27 @@ Thanks,
             height=250,
         )
 
+        # =============================
+        # 👁️ TEMPLATE PREVIEW (added safely)
+        # =============================
+        if uploaded_file is not None and not df.empty:
+            st.markdown("### 👁️ Template Preview")
+            try:
+                sample_row = df.iloc[0].to_dict()
+                preview_subject = subject_template.format(**sample_row)
+                preview_body_html = convert_bold(body_template.format(**sample_row))
+                st.write(f"**📨 Preview Subject:** {preview_subject}")
+                st.markdown(
+                    f"<div style='border:1px solid #ddd; padding:10px; border-radius:8px;'>{preview_body_html}</div>",
+                    unsafe_allow_html=True,
+                )
+            except Exception as e:
+                st.warning(f"⚠️ Preview unavailable: {e}")
+
         label_name = st.text_input("Gmail label", "Mail Merge Sent")
         delay = st.slider("Delay (seconds)", 20, 75, 20)
 
-        send_mode = st.radio(
-            "Choose mode",
-            ["🆕 New Email", "↩️ Follow-up (Reply)", "💾 Save as Draft"]
-        )
+        send_mode = st.radio("Choose mode", ["🆕 New Email", "↩️ Follow-up (Reply)", "💾 Save as Draft"])
 
         if st.button("🚀 Send Emails / Save Drafts"):
             st.session_state.update({
@@ -279,10 +282,8 @@ if st.session_state["sending"]:
     sent_count, skipped, errors = 0, [], []
 
     for idx, row in df.iterrows():
-        # ✅ Fixed progress bar range
         pct = int(((idx + 1) / total) * 100)
-        pct = min(max(pct, 0), 100)
-        progress.progress(pct)
+        progress.progress(min(max(pct, 0), 100))
         status_box.info(f"Processing {idx + 1}/{total}")
 
         to_addr = extract_email(str(row.get("Email", "")).strip())
@@ -340,7 +341,6 @@ if st.session_state["sending"]:
             errors.append((to_addr, str(e)))
             st.error(f"Error for {to_addr}: {e}")
 
-    # ✅ Safely finish progress
     progress.progress(100)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -391,3 +391,4 @@ if st.session_state["done"]:
             os.remove(DONE_FILE)
         st.session_state.clear()
         st.experimental_rerun()
+
